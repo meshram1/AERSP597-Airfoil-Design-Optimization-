@@ -27,9 +27,10 @@ u = (z − lb)/(ub − lb) ∈ [0,1]^12  (min-max scaled, well-conditioned).
 The surrogate predicts [CL, log(CD), CM] in normalised space.  We
 denormalise then exponentiate to recover physical CD.
 
-Note: the surrogate has no max_thickness input, so "reduce thickness vs
-kc135" is enforced by constraining all four thickness_x_*_y features to
-be ≤ (1 − reduction)·kc135 thickness profile.
+Thickness-reduction constraint is now enforced TWO ways:
+  • directly:   max_thickness ≤ (1 − reduction) · kc135_max_thickness
+  • profile:    thickness_x_*_y ≤ (1 − reduction) · kc135 sample
+Coherence rules also keep max_thickness ≥ each profile sample.
 """
 from __future__ import annotations
 
@@ -80,19 +81,7 @@ IDX_THK_PROFILE_GEOM = [
 ]
 
 # ─── kc135a baseline values for the 12 geometry features ───────────────
-# Read straight from row 1 of airfoil_data.csv:
-#   max_camber                = 0.015759598
-#   camber_position           = 0.195979899
-#   leading_edge_radius       = 0.020511475
-#   trailing_edge_angle_deg_y = 16.34891452
-#   thickness_x_0.2_y         = 0.136011176
-#   thickness_x_0.4_y         = 0.153451829
-#   thickness_x_0.6_y         = 0.114855638
-#   thickness_x_0.8_y         = 0.057539035
-#   camber_x_0.25_y           = 0.015513021
-#   camber_x_0.5_y            = 0.012899623
-#   camber_x_0.75_y           = 0.007071131
-#   upper_slope_x_0.2_y       = 0.1199
+# Read straight from row 1 of airfoil_data.csv (must match GEOM_NAMES order).
 KC135_GEOM = np.array([
     0.015759598,    # max_camber
     0.195979899,    # camber_position
@@ -276,10 +265,6 @@ def build_coherence_matrix():
         3) max_camber       ≥ camber_x_0.75_y
         4) thickness_x_0.4  ≥ thickness_x_0.6
         5) thickness_x_0.6  ≥ thickness_x_0.8
-
-    Constraints 1–3 keep the camber peak above the local camber samples.
-    Constraints 4–5 enforce monotone aft thinning (which most non-laminar
-    airfoils — including kc135 — already satisfy).
     """
     i_mc  = GEOM_NAMES.index("max_camber")
     i_c25 = GEOM_NAMES.index("camber_x_0.25_y")
