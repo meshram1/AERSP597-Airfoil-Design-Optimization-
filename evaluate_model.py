@@ -46,14 +46,21 @@ def evaluate(
         r2_clcd_train, r2_clcd_test
         mae_test, rmse_test                 (each: dict cl/log_cd/cm/cl_cd)
     """
-    # ─ data ──────────────────────────────────────────────────────────
-    df = pd.read_csv(CSV_PATH).dropna(axis=1, how="all").dropna().copy()
+    # ─ data (must match train_model.py preprocessing) ────────────────
+    # 1) drop airfoilName + last 4 trailing Unnamed cols
+    # 2) drop any NaN rows
+    # 3) log-transform CD
+    df = pd.read_csv(CSV_PATH).iloc[:, 1:-4].dropna().copy()
     df["coefficientDrag"] = np.log(df["coefficientDrag"])
     X = df[FULL_FEATURES].values.astype(np.float32)
     y = df[["coefficientLift",
             "coefficientDrag",
             "coefficientMoment"]].values.astype(np.float32)
-    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Same 70/20/10 split as train_model.py — first carve off 10 % test,
+    # then split the rest 70/20.  We evaluate ONLY on the 10 % held-out test.
+    X_rest, X_te, y_rest, y_te = train_test_split(X, y, test_size=0.10, random_state=42)
+    X_tr,   X_val, y_tr, y_val = train_test_split(X_rest, y_rest,
+                                                  test_size=2/9, random_state=42)
 
     # ─ model ─────────────────────────────────────────────────────────
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
